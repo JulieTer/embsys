@@ -1,204 +1,131 @@
-# Partie 2: Compilation, debug et gestionnaire de signaux
-
-
 ## Exercice 1 : GDB et fichier core
 
-Une fois le simulateur GPS compilé, le lancer grâce au script *gps/run.sh* :
+**Question 1** : On obtient un segmentation fault; il y a donc une erreur non gérée qui débouche sur un arrêt involontaire du processus.
+
+**Question 2** : Avec echo $? on obtient l'entier 139; la commande kill -l 11 indique que le signal reçu est SEGV. (11 vient de la soustraction de 128 à 139)
+
+**Question 3** : On obtient la trace suivante:
 
 ````
-$ sh run.sh
-PTTY: /dev/pts/X
+    #0  strlen () at ../sysdeps/x86_64/strlen.S:106
+    #1  0x00007f7df10ae69c in _IO_puts (str=0x0) at ioputs.c:35_
+    #2  0x00007f7df1409b41 in knot_to_kmh_str (not=5.51000023, size=6,     format=0x7f7df140a00f "%05.1f", kmh_str=0x7ffe7034c410 "010.2") at nmea.c:23
+    #3  0x00007f7df1409f98 in nmea_vtg (vtg=0x7ffe7034c450) at nmea.c:178
+    #4  0x0000000000400bc4 in write_vtg (fd=3) at gps.c:40
+    #5  0x0000000000400e3c in main () at gps.c:109
 ````
 
-**Question 1** : Que se passe-t-il au bout de quelques secondes? Qu'en
-                 déduisez vous?
+Les fonctions strlen et ioputs des lignes #0 et #1 sont relativement "standards"; il est donc peu probable que l'erreur vienne de là. Elle est donc plus probablement située dans les fonctions des lignes suivantes (#2 à #5).
 
-**Question 2** : Quel signal a reçu le processus pour se terminer ainsi? Comment
-                vérifiez vous le numéro du signal reçu?
+A étudier de plus près le code de la fonction knot_to_kmh_str (#2), il semblerait que l'on soit rentré dans le cas GPS_OK non définie, ce qui cause la sortie du fait de puts(NULL).
 
-Lors d'une terminaison anormale, un fichier *core* peut être généré. Par défaut,
-la génération d'un fichier core est généralement désactivée :
+**Question 4** : En mode interactif, on obtient le message suivant:
 
 ````
-$ ulimit -c
-0
+    /home/u/cours_linuxembarque/embsys/labs/sysprog/gps/bin/gps: error while loading shared libraries: libptmx.so: cannot open shared object file: No such file or directory
 ````
 
-Ici la commande renvoie grâce au paramètre *-c* la taille du fichier core à
-générer. La taille étant 0, aucun fichier n'est créé. Pour y remédier :
+Une ou plusieurs librairies ne s'importent donc pas correctement; en l'occurence il s'agit de la librairie libptmx.so.
+
+**Question 5** : D'après les informations obtenues avec la commande man ldd:
 
 ````
-$ ulimit -c unlimited
-$ ulimit -c
-unlimited
+    ldd prints the shared objects (shared libraries) required by each program or shared object specified on the command line.
 ````
 
-Relancez le simulateur GPS. Suite au crash, un fichier core doit être généré
-dans le répertoire courant.
-
-Nous allons ici utiliser GDB pour analyser le dump mémoire afin de trouver
-l'origine de l'erreur. GDB est un outils très complet fournissant de
-nombreuses commandes.
-
-Pour lancer GDB et analyser un fichier core :
+On va donc pouvoir utiliser ldd pour localiser la librairie qui ne s'est pas importée correctement, à l'aide du retour de la commande ldd ./gps:
 
 ````
-$ gdb ./bin/gps core
+  linux-vdso.so.1 =>  (0x00007fff14395000)
+	libptmx.so => not found
+	libnmea.so => not found
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f869138c000)
+	/lib64/ld-linux-x86-64.so.2 (0x000055d7ce897000)
 ````
 
-Ensuite, dans le prompt GDB, utilisez la commande *bt* (pour *backtrace*) afin
-de savoir comment votre programme en est arrivé là (image de la pile).
+On constate qu'en plus de la librairie manquante libptmx.so (constatée en question 4), la librairie libnmea.so n'a pas non plus été trouvée.
 
-**Question 3** : Grâce à GDB et au fichier *core* généré, analysez la source du
-                 problème du binaire *gps*. Quelle partie du code est fausse?
-                 Pourquoi?
 
-GDB peut être aussi lancé de manière interactive :
+**Question 6** : De cette ligne du fichier run.sh (qui indique où aller trouver les librairies), on déduit qu'il faut "ajouter" l'importation des librairies concernées dans le makefile afin de pouvoir également y accéder depuis le fichier compilé, sans avoir à nécessairement passer par le run.sh
 
 ````
-$ gdb ./bin/gps
+    export LD_LIBRARY_PATH=$ROOT_DIR/lib
 ````
 
-Une fois dans le prompt, il faut lancer la commande *r* (comme *run*) et *bt*
-pour récupérer la backtrace.
-
-Il est aussi possible de placer des breakpoint sur une ligne de code, dans une
-fonction, etc. Puis on peut avancer pas à pas avec *n* ou *s* (en fonction de
-ce que l'on veut faire). Par exemple:
+**Question 7** : De la commande man gdb on obtient:
 
 ````
-$ gdb ./bin/gps
-$ break nmea.c:19
-$ r
-...
-$ s
-...
-$ n
-...
+       step
+           Execute next program line (after
+           stopping); step into any function calls
+           in the line.
+
+       next
+           Execute next program line (after
+           stopping); step over any function calls
+           in the line.
 ````
 
-**Question 4** : Que se passe-t-il quand vous lancez GDB en mode interactif sur
-                 le binaire *gps*?
+Step (s) exécute bien le programme ligne par ligne et renvoie toutes les informations associées, alors que Next (n) n'informe que sur la fonction exécutée, sans rentrer dedans étape par étape.
 
-Suite au problème repéré, allez dans le répertoire *gps/bin* et lancez la
-commande suivante :
+**Question 8** : Comme beaucoup d'outils "à distance", celui-ci peut être utilisé pour résoudre des problèmes sans être sur place, même sans avoir nécessairement accès au code lui-même. Ce genre de situations peut arriver par exemple pour des clients chez qui on ne peut se déplacer, mais à qui l'on peut néanmoins porter assistance (dans une certaine mesure).
 
-````
-ldd ./gps
-````
 
-**Question 5** : À quoi sert la commande *ldd*? Quelle information
-                supplémentaire cela vous apporte-t-il?
 
-**Question 6** : Comment résoudre ce problème en tant qu'utilisateur? N'hésitez
-                 pas à regarder le fichier *gps/run.sh*.
-
-Relancez *ldd* puis GDB pour vérifier que votre solution a porté ses fruits.
-
-**Question 7** : Quelle est la différence entre les commandes *s* et *n* dans
-                 le prompt gdb suite à un breakpoint?
-
-Il existe aussi une version de GDB pour déboguer à distance. Il y
-a alors un GDBServer tournant sur la cible où le programme à déboguer est
-exécuté. Ensuite, un client GDB tourne sur la machine servant à déboguer
-et communique avec le serveur grâce au réseau.
-
-**Question 8** : Dans quel contexte ce type d'outils peut être intéressant?
-
-### À retenir
-
-  * l'utilité de *ulimit* et comment déclencher la génération d'un fichier core
-  * à quoi sert *GDB* et comment l'utiliser
-  * l'utilité de *ldd*
-  * pourquoi, quand et comment utiliser la variable d'environnement
-    *LD_LIBRARY_PATH*
 
 ## Exercice 2 : LD_PRELOAD et sigaction
 
-Maintenant que le problème est identifié, nous allons le résoudre. Cependant,
-nous partons du principe que le code source du simulateur **NE DOIT PAS ÊTRE
-MODIFIÉ**. Pour corriger le problème, nous allons utiliser la variable
-d'environnement *LD_PRELOAD*. Cette variable permet de *hooker* (comprendre
-*usurper*) certaines fonctions d'une application.
-
-Utilisation :
+**Question 1** : En enlevant la partie "gestion d'erreur" de knot_to_kkmh_str repérée en question 3, on écrit la fonction suivante dans hook.c:
 
 ````
-LD_PRELOAD=libhook.so ./bin/gps
+int knot_to_kmh_str(float not, size_t size, char * format, char * kmh_str)
+{
+    float kmh = KNOT_TO_KMH * not;
+    snprintf(kmh_str, size, format, kmh);
+
+
+    return kmh;
+}
 ````
 
-En faisant ainsi, le binaire cherchera en priorité les fonctions dont il
-a besoin dans *libhook.so*! Pour que cela fonctionne, il faut que les fonctions
-définies dans libhook aient exactement le même prototype.
+**Question 2** : En s'inspirant du Makefile proposé, on peut écrire des commandes adaptées à la compilation du fichier hook.c:
 
-Pour les questions suivantes, allez dans le répertoire de travail
-*ld_preload*. Vous devrez travailler sur trois fichiers:
+````
+SONAME = libhook.so
+GCC = gcc
 
-  * hook.c
-  * Makefile
-  * run.sh
+all: hook
+    $(GCC) -g -c -fPIC hook.c -o hook.o
+    $(GCC) -g -shared -Wl,-soname,$(SONAME) -o $(SONAME) hook.o
 
-**Question 1** : Implémentez dans le fichier hook.c la fonction à l'origine du
-                 problème repéré au sein du simulateur GPS mais cette fois-çi
-                 sans erreur.
+hook:
+    @echo "TODO : create a shared library with hook.c"
+````
 
-**Question 2** : Éditez le Makefile pour compiler *hook.c* sous la forme d'une
-                 librairie partagée nommée *libhook.so* (s'inspirer de
-                 *gps/src/lib/ptmx/Makefile*). Testez la compilation.
+La compilation fonctionne sans problème.
 
-**Question 3** : Éditez le fichier *run.sh* pour utiliser LD_PRELOAD au moment
-                 de lancer le simulateur et ainsi hooker le binaire avec la
-                 librairie libhook.so. Exécutez run.sh : le simulateur ne doit
-                 plus partir en segfault.
+**Question 3** : On hooke le binaire avec libhook.so en rajoutant la ligne suivante au fichier run.sh:
 
-Nous avons ici hooké une fonction définie dans une librairie "utilisateur". On
-peut réaliser la même opération sur les librairies systèmes. Par exemple, le
-simulateur GPS utilise la fonction *printf* dès son lancement.
+````
+LD_PRELOAD=$(pwd)/libhook.so
+````
 
-**Question 4** : Utilisez le *man* pour déterminer le prototype de la fonction
-                 *printf* (expliquez comment vous utilisez *man* dans ce cas et
-                 pourquoi). Comment est appelé ce type de fonction?
+La commande $sh run.sh n'amène pas à un segfault.
 
-**Question 5** : Analysez *gps/src/bin/gps/gps.c* er repérez où se trouve le
-                 gestionnaires de signaux. Décrivez les fonctions utilisez
-                 ainsi que les signaux gérés.
+**Question 4** : Il serait tentant au premier abord d'utiliser $man printf, or on se rend compte que cecei renvoie plutôt l'utilisation de printf, et non un aperçu de son code. Pour cela, on va passer par le manuel plus général avec $man man. Printf est vraisemblablement située dans une bibliothèque (section 3). Avec $man 3 printf (pour lire la page printf de la section 3 du manuel), on obtient le prototype cherché:
 
-**Question 6** : Hookez le simulateur pour que ce dernier ne puisse plus
-                 être interrompu par le signal SIGINT (Ctrl-C) en
-                 réimplémentant la fonction *printf* dans libhook.so. Pour
-                 cela, utilisez la fonction *sigaction* pour mettre en place
-                 un gestionnaire de signaux au sein même de la fonction
-                 *printf*  réimplémentée.
+````
+int printf(const char *format, ...);
+````
 
-**Question 7** : Comment faire pour interrompre le processus étant donné
-                 que ce dernier ne répond plus au Ctrl-C? Citez deux méthodes.
-
-**Question 8** : En regardant le fichier *gps/Makefile*, que pouvez-vous dire
-                 de la règle *ok*? À quoi sert-elle et comment
-                 fonctionne-t-elle?
-
-### À retenir
-
-  * comment utiliser le *man*
-  * la mise en place d'un gestionnaire de signaux grâce à *sigaction*
-  * l'utilité et le fonctionnement de *LD_PRELOAD*
+**Question 5** : Le gestionnaire de signaux est la fonction signals_handlers(int signal_number) dont le code est reporté ci-dessous.
 
 
-## Exercice 3 : Terminal série (minicom)
-
-Dans le cas d'une communication série avec du matériel, il est toujours
-intéressant d'observer les trames. En effet, on peut par exemple comprendre un
-protocole de communication grâce à de la rétro ingénierie. Pour cela, il existe
-des programmes tel que *gtkterm*, *PuTTY*, *picocom* et bien d'autres. Lors de
-ce TP, nous allons utiliser *minicom*.
-
-**Question 1** : Grâce à l'aide en ligne de commande de *minicom* (option
-                 *-h*), se connecter au port du simulateur GPS et observez les
-                 trames passées.
-
-**Question 2** : Naviguez dans l'aide de minicom (Ctrl-A Z) pour récupérer la
-                 configuration du port de communication. Expliquez brièvement
-                 la signification de ces paramètres.
-
-**Question 3** : Utiliser minicom pour capturer un extrait de la
-                 communication dans un fichier.
+````
+void signals_handler(int signal_number)
+{
+    printf("Signal catched.\n");
+    ptmxclose(&ptmx);
+    exit(EXIT_SUCCESS);
+}
+````

@@ -11,12 +11,13 @@
 //-----------------------------------------------------------------------------
 int main(int argc, char *argv [])
 {
-    char * port = NULL;
+    char * port1 = NULL;
+    char * port2 = NULL;
 
     // parse comand line
-    if (argc != 3)
+    if (argc != 4)
     {
-        fprintf(stderr, "Invalid usage: reader -p port_name\n");
+        fprintf(stderr, "Invalid usage: reader -p port_name_1 port_name_2\n");
         exit(EXIT_FAILURE);
     }
 
@@ -27,7 +28,9 @@ int main(int argc, char *argv [])
         switch(option)
         {
             case 'p':
-                port = optarg;
+                port1 = argv[2];
+                port2 = argv[3];
+                printf("%s,%s\n", port1, port2);
                 break;
 
             case '?':
