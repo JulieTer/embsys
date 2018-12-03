@@ -20,6 +20,9 @@ PTTY: /dev/pts/3
 **Question 1** : Selon vous, à quoi correspond le champs indiqué par
                 *PTTY*?
 
+Le champs PTTY correspond au port que l'ordinateur vient lire pour récupérer les
+données GPS.
+
 Pour la suite, placez vous dans le répertoire *gps_reader* contenant :
 
   * reader.c : le code du reader que nous allons modifier
@@ -37,24 +40,112 @@ Un binaire *gps_reader* est alors généré.
 Lancez le reader sans paramètre pour avoir l'aide et en déduire son utilisation.
 Puis exécutez le avec les paramètres nécessaires et observez les trames NMEA.
 
+Depuis un premier terminal, on lance le code suivant afin générer les trames NMEA :
+````
+ganlan@ganlan-VirtualBox:~/embsys/labs/sysprog/gps$ sh run.sh
+PTTY: /dev/pts/3
+````
+Les trames ainsi créées sont envoyées sur le port /dev/pts/3.
+Depuis un autre terminal, on lance le programme gps_reader qui lit les trames et
+les affiche à l'écran. On lui fournit comme option le port sur lequel l'autre programme
+communique :
+````
+ganlan@ganlan-VirtualBox:~/embsys/labs/sysprog/gps_reader$ ./gps_reader -p /dev/pts/3
+$GPVTG,054.7,T,034.4,M,005.5,010.2,K
+$GPGLL,4836.60,N,00741.00,E,110856,A
+````
+
+
 **Question 2** : En regardant le code de *reader.c*, y a-t-il quelque chose qui
                  vous chagrine?
+
+Le code manque clairement de modularité, la totalité des opérations sont
+effectuées dans le main. Il vaudrait mieux écrire le main comme une suite d'appels
+de fonctions définies en amont du main. Il manque aussi un *default* dans le *switch*
+ce qui pourrait générer une erreur si une option non prévue était fournie en
+entrée de cette fonction.
 
 **Question 3** : Grâce à des recherches Internet (ou en fouinant dans le code
                  du simulateur), déterminez dans quelle trame et dans quel champs
                  l'heure est définie.
 
+L'une des trames fournissant l'heure d'envoi est la trame (GP)GGA de la forme :
+````
+$--GGA,hhmmss.ss,llll.ll,a,yyyyy.yy,a,x,xx,x.x,x.x,M,x.x,M,x.x,xxxx
+````
+où hhmmss.ss forment l'heure.
+
 **Question 4** : Quelles fonctions sont utilisées dans *reader.c* pour
                  ouvrir/écouter/lire/fermer le port virtuel du simulateur?
                  Comment s'appelle ce type de programmation?
+
+Pour ouvrir un port de communication, on génère un file descriptor (fd). Ici,
+on ouvre le port *port* . Le reste des arguments sont des flags :
+````
+int fd = open(port, O_RDWR | O_NOCTTY);
+````
+
+On créé un set de file descriptors :
+````
+FD_ZERO(&fdset);              // Cree un pipe au format file descriptor
+FD_SET(fd, &fdset);           // Associe le file descriptor au set
+
+select(fd+1, &fdset, NULL, NULL, NULL); // Attends que quelque chose se passe sur les fd de 0 à fd+1.
+
+if (FD_ISSET(fd, &fdset)) // reagi si message sur le fd uniquement.
+````
+
+On lit le message et on l'enregistre dans un buffer de taille sizeof(buff):
+````
+read (fd, buff, sizeof(buff))
+````
+
+Enfin on ferme le file descriptor :
+````
+close(fd);
+````
+
+C'est de la communication par multiplexage.
 
 **Question 5** : Modifiez le code de *reader.c* afin qu'il puisse écouter les
                  trames provenant de deux simulateurs GPS différents (ports
                  paramétrables au lancement). Vérifiez le bon fonctionnement en
                  lançant deux instances du simulateur GPS.
 
+Premier terminal :
+````
+~/embsys/labs/sysprog/gps$ sh run.sh
+PTTY: /dev/pts/4
+````
+Second terminal :
+````
+~/embsys/labs/sysprog/gps$ sh run.sh
+PTTY: /dev/pts/5
+````
+Troisième terminal :
+````
+~/embsys/labs/sysprog/gps_reader$ ./gps_reader -p /dev/pts/5 /dev/pts/4
+/dev/pts/5, /dev/pts/4
+FD2 : $GPGLL,4843.43,N,00747.84,E,221416,A
+FD1 : $GPVTG,055.8,T,035.5,M,006.6,012.3,K
+FD2 : $GPVTG,055.8,T,035.5,M,006.7,012.3,K
+FD1 : $GPGLL,4843.43,N,00747.84,E,221419,A
+FD2 : $GPGLL,4843.49,N,00747.90,E,221420,A
+````
+
+
+
 **Question 6** : Utilisez *syslog* pour afficher l'heure dans la console ainsi
                  que le PID du père.
+````
+openlog ("gps_reader", LOG_CRON | LOG_PID, LOG_LPR);
+syslog (LOG_NOTICE, "test");
+closelog ();
+````
+Pour l'afficher dans la console :
+````
+tail -f -n 1 /var/log/syslog
+````
 
 **Question 7** : TODO!!!! Modifier la conf du démon syslog pour logger dans un
                  un fichier spécifique!

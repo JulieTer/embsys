@@ -1,0 +1,4 @@
+~/embsys/labs/sysprog/gps_reader$ ./gps_reader -p /dev/pts/3 /dev/pts/5
+
+~/embsys/labs/sysprog/gps$ sh run.sh 
+~/embsys/labs/sysprog/gps$ sh run.sh 

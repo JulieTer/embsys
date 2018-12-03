@@ -104,16 +104,101 @@ suivantes:
 
 **Question 1**: Qu'est ce qu'un Makefile? À quoi sert make?
 
+Un makefile est un fichier texte résumant les étapes que doit suivre le compilateur afin
+de compiler correctement un fichier en C par exemple. make est l'utilitaire qui
+interprète le contenu du makefile.
+
 **Question 2**: Quel compilateur est utilisé ici?
 
+Le compilateur utilisé est GCC (GNU Compiler Collection).
+
 **Question 3**: Qu'est ce qu'une librairie partagée?
+
+Une librairie partagée est une librairie utilisable par plusieurs fichiers C
+depuis n'importe quel dossier. Ils sont généralement placés dans /lib et sont
+appelés comme des fichier header. L'avantage de ces librairies est quelles ne sont
+pas appelées par défaut. Elle ne prennent donc de l'espace mémoire que lorsqu'elles
+sont appelées.
 
 **Question 4**: Donnez un exemple de fichier C et la ligne de commande
                 correspondante pour obtenir un binaire exécutable (un hello
                 world par exemple).
 
+Pour compiler un exécutable *executable* à partir d'un fichier *fichier.c*, j'utilise
+d'une manière courante la commande suivante :
+
+````
+gcc fichier.c -o [-Wall] executable
+````
+
 **Question 5**: Donnez un exemple de fichier C et les lignes de commandes
                 correspondantes pour obtenir une librairie partagée.
+
+Après une recherche, je suis tombé sur les lignes de code suivantes pour créer
+une librairie partagée libdobj.so à partir d'un fichier obj.c définissant une
+structure OBJDATA :
+
+````
+gcc -fPIC -c obj.c
+gcc -shared -W1,-soname,libdobj.so.1 -o libdobj.so.1.0 obj.o
+ln -s libdobj.so.1.0 libdobj.so.1
+ln -s libdobj.so.1 libdobj.so
+export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
+````
+
+Le fichier C obj.c correspondant :
+
+````
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct OBJDATA
+{
+char *name;
+int version;
+} OBJDATA;
+
+void *init(char *name)
+{
+OBJDATA *data=(OBJDATA*)calloc(1,sizeof(OBJDATA));
+if(name)
+data->name=malloc(strlen(name)+1);
+strcpy(data->name, name);
+printf("Cree : %s\n", name);
+return data;
+}
+
+void montre(void *data)
+{
+OBJDATA *d=(OBJDATA*)data;
+printf("Montre : %s\n", d->name);
+}
+
+void detruit(void *data)
+{
+OBJDATA *d=(OBJDATA*)data;
+if(d)
+  {
+if(d->name)
+  {printf("Destruction : %s\n", d->name);
+free(d->name);
+}
+free(d);
+}
+}
+````
+
+source : http://www.linux-france.org/article/memo/node113.html
+
+En recherchant dans le fichier Makefile situé en ~/embsys/labs/sysprog/gps/src/lib/nmea, on peut voir un exemple plus simple d'implémentation d'une librairie *libnmea.so* à partir d'un fichier C *nmea.c*.
+````
+gcc -g -c -fPIC nmea.c -o nmea.o
+gcc -g -shared -Wl,-soname,libnmea.so -o libnmea.so nmea.o -lm
+export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
+````
+A noter que dans les deux cas, la dernière ligne du Makefile permet de mettre à jour la variable d'environnement LD_LIBRARY_PATH qui répertorie les dossiers contenant les librairies à utiliser pour la compilation.
+
 
 ## À retenir
 
