@@ -20,8 +20,11 @@ PTTY: /dev/pts/3
 **Question 1** : Selon vous, à quoi correspond le champs indiqué par
                 *PTTY*?
 
+
 Le champs PTTY correspond au port que l'ordinateur vient lire pour récupérer les
-données GPS.
+données GPS. Pour être précis, il s'agit de la chaine de caractères correspondant au terminal virtuel par lequel transitent les informations en provenance de notre capteur GPS virtuel.
+
+
 
 Pour la suite, placez vous dans le répertoire *gps_reader* contenant :
 
@@ -39,6 +42,8 @@ Un binaire *gps_reader* est alors généré.
 
 Lancez le reader sans paramètre pour avoir l'aide et en déduire son utilisation.
 Puis exécutez le avec les paramètres nécessaires et observez les trames NMEA.
+
+
 
 Depuis un premier terminal, on lance le code suivant afin générer les trames NMEA :
 ````
@@ -63,7 +68,7 @@ Le code manque clairement de modularité, la totalité des opérations sont
 effectuées dans le main. Il vaudrait mieux écrire le main comme une suite d'appels
 de fonctions définies en amont du main. Il manque aussi un *default* dans le *switch*
 ce qui pourrait générer une erreur si une option non prévue était fournie en
-entrée de cette fonction.
+entrée de cette fonction. Enfin, le code est dépourvu de gestionnaire de signaux, ce qui empêche de fermer correctement le programme à l'aide d'un CTRL-C par exemple.
 
 **Question 3** : Grâce à des recherches Internet (ou en fouinant dans le code
                  du simulateur), déterminez dans quelle trame et dans quel champs
@@ -105,13 +110,21 @@ Enfin on ferme le file descriptor :
 close(fd);
 ````
 
-C'est de la communication par multiplexage.
+Il s'agit de communication par multiplexage.
+
+
 
 **Question 5** : Modifiez le code de *reader.c* afin qu'il puisse écouter les
                  trames provenant de deux simulateurs GPS différents (ports
                  paramétrables au lancement). Vérifiez le bon fonctionnement en
                  lançant deux instances du simulateur GPS.
 
+Le code de *reader.c* a été modifié de telle sorte qu'il se lance de la manière suivante :
+````
+~/embsys/labs/sysprog/gps_reader$ ./gps_reader -p /dev/pts/X /dev/pts/Y
+````
+où X et Y sont quelconques.
+Voici les résultats du code :
 Premier terminal :
 ````
 ~/embsys/labs/sysprog/gps$ sh run.sh

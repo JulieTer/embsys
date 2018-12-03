@@ -81,7 +81,7 @@ Program terminated with signal SIGSEGV, Segmentation fault.
 (gdb)
 ````
 
-Il manque les symboles pour pouvoir déchiffrer le message d'erreur.
+Il manque les symboles pour pouvoir déchiffrer le message d'erreur. D'où l'apparition des "??" à la fin du message de gdb.
 
 
 
@@ -137,7 +137,7 @@ Starting program: /home/ganlan/embsys/labs/sysprog/gps/bin/gps
 /home/ganlan/embsys/labs/sysprog/gps/bin/gps: error while loading shared libraries: libptmx.so: cannot open shared object file: No such file or directory
 [Inferior 1 (process 2449) exited with code 0177]
 ````
-Le problème semble donc venir de l’absence de référence renvoyant vers la librairie *libptmx.so*.
+On remarque à la première ligne que cette fois-ci les symboles ont bien été chargés, ce qui permet de traduire le message d'erreur. Le problème semble ici venir de l’absence de référence renvoyant vers la librairie *libptmx.so*.
 
 
 
@@ -162,26 +162,22 @@ ldd ./gps
 	/lib64/ld-linux-x86-64.so.2 (0x00007f6a3f3e8000)
 ````
 
-On constate que les librairies libptx.so et libnmea.so n'ont pas été trouvées par gcc.
+On constate que les librairies *libptx.so* et *libnmea.so* sont bien requises pour l'exécution du binaire *gps* et qu'elles n'ont pas été trouvées par gcc.
 
 
 
 **Question 6** : Comment résoudre ce problème en tant qu'utilisateur? N'hésitez
                  pas à regarder le fichier *gps/run.sh*.
 
-Quand on lance l’exécutable directement, les librairies non standards manquantes ne
-sont pas reconnues :
 
+Quand on lance l’exécutable directement, les librairies partagées manquantes ne
+sont pas reconnues :
 ````
 ~/embsys/labs/sysprog/gps$ ./bin/gps
 ./bin/gps: error while loading shared libraries: libptmx.so: cannot open shared object file: No such file or directory
 ````
-
 Quand on lance le run.sh, le programme se lance mais finit par planter en core dump.
-Le fait que les librairies ne soient pas manquantes est dûe à la détection du
-dossier des librairies faite avec le "export" de la variable d'environnement
-*LD_LIBRARY_PATH* dans le run.sh. Pour régler le problème
-d'import des librairies, une solution serait de mettre le export dans le bashrc puis de le sourcer dans le terminal en cours.
+Le fait que les librairies ne soient pas manquantes est due à la détection du dossier des librairies faite avec le *"export"* de la variable d'environnement *LD_LIBRARY_PATH* dans le run.sh. Pour régler le problème d'import des librairies, une solution serait de mettre le *"export"* dans le bashrc puis de le sourcer dans le terminal en cours.
 
 
 
@@ -196,6 +192,7 @@ Relancez *ldd* puis GDB pour vérifier que votre solution a porté ses fruits.
 	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007fd77e832000)
 	/lib64/ld-linux-x86-64.so.2 (0x00007fd77f5c9000)
 ````
+Les librairies ont bien été trouvées par gcc.
 
 
 **Question 7** : Quelle est la différence entre les commandes *s* et *n* dans
@@ -295,7 +292,6 @@ Pour les questions suivantes, allez dans le répertoire de travail
                  sans erreur.
 
 J'ai modifié la fonction *hook.c* de la manière suivante :
-
 ````
 int knot_to_kmh_str(float not, size_t size, char * format, char * kmh_str)
 {
@@ -307,6 +303,8 @@ int knot_to_kmh_str(float not, size_t size, char * format, char * kmh_str)
 }
 ````
 
+
+
 **Question 2** : Éditez le Makefile pour compiler *hook.c* sous la forme d'une
                  librairie partagée nommée *libhook.so* (s'inspirer de
                  *gps/src/lib/ptmx/Makefile*). Testez la compilation.
@@ -317,6 +315,7 @@ all: hook
 	$(GCC) -g -c -fPIC hook.c -o hook.o
 	$(GCC) -g -shared -Wl,-soname,$(SONAME) -o $(SONAME) hook.o
 ````
+
 
 
 **Question 3** : Éditez le fichier *run.sh* pour utiliser LD_PRELOAD au moment
@@ -332,6 +331,8 @@ Hooked you!
 Hooked you!
 Hooked you!
 ````
+La fonction originale a bel et bien été remplacée par notre nouvelle fonction.
+
 
 
 Nous avons ici hooké une fonction définie dans une librairie "utilisateur". On
@@ -380,6 +381,8 @@ action.sa_flags = 0;
 sigaction(SIGINT, & action, NULL);
 ````
 Dans ce gestionnaire de signaux, c'est l'utilitaire *sigaction* qui est utilisé et seul le CTRL-C semble pris en compte (*SIGINT*).
+
+
 
 **Question 6** : Hookez le simulateur pour que ce dernier ne puisse plus
                  être interrompu par le signal SIGINT (Ctrl-C) en
