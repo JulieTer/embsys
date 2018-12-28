@@ -16,31 +16,64 @@ $ docker run -it embsys:rpi3-buildroot /bin/bash
 # cd buildroot-2017.08
 ````
 
+
+**Question 1**: À quoi sert l'option *--cap-add* lors du lancement d'un
+                nouveau coneneur Docker?
+
+
+
 ### QEMU et chroot
 
 Tout d'abord, il faut installer les paquets nécessaires pour utiliser QMEU dans
 le conteneur Docker:
 
 ````
+# apt-get update
 # apt-get install binfmt-support qemu-user-static
+````
+
+Ensuite créez un simple fichier C et compilez le avec le cross-compilateur
+fourni par Buildroot (cf [Partie 1](buildroot.md)):
+
+````
+# printf '#include <stdio.h>\nint main(){ printf("Hello Worlds!"); }\n' > hw.c
+Compiler le programme avec le cross-compilateur GCC linux vers raspberry ARM :
+# ./output/host/usr/bin/arm-linux-gcc hw.c -o hw
 ````
 
 Émulation de carte arm avec QEMU:
 
 ````
-$ sudo mount /dev/sdX2 /media/sd
-$ cd /media/sd
-$ mount --bind /dev dev/
-$ mount --bind /proc proc/
-$ sudo cp /usr/bin/qemu-arm-static usr/bin/
-$ sudo chroot . bin/busybox ash
+$ mkdir -p /tmp/rootfs
+$ tar -xf output/images/rootfs.tar -C /tmp/rootfs
+$ cp hw /tmp/rootfs/		//copie executable
+$ cd /tmp/rootfs
+$ mount --bind /dev dev/	// monte /dev
+$ mount --bind /proc proc/	// monte /proc
+$ cp /usr/bin/qemu-arm-static usr/bin/
+$ chroot . bin/busybox ash	// Change
 root@hostname:  $
 ````
 
-Pour démonter:
+**Question 2**: À quoi sert la commande *chroot*?
+
+chroot - run command or interactive shell with special root directory
+Dans notre cas, on exécute le binaire bin/busybox sous l'identifiant "ash".
+
+Ensuite, exécutez le binaire cross-compilé *hw* dans l'environnement *chroot*.
 
 ````
-$ sudo umount /media/sd/dev
-$ sudo umount /media/sd/proc
-$ sudo umount /media/sd/
+/ # ./hw
+Hello Worlds!
 ````
+
+**Question 3**: Que se passe-t-il? Pourquoi?
+
+Finalement, sortir de l'environnement du chroot (Ctrl-D) et démonter les
+volumes:
+
+````
+$ umount /tmp/rootfs/dev
+$ umount /tmp/rootfs/proc
+````
+
