@@ -169,4 +169,4 @@ La commande `tar -xf output/images/rootfs.tar -C /tmp/rootfs` a décompressé la
 
 **Question complémentaire (demandée en cours)**: Définir ce que sont les outils d'automatisation avec nos propres mots.
 
-Comme leur nom l'indique, les outils d'automatisation servent à automatiser un processus, en l'occurrence la création (construction et compilation) d'un système Linux qu'on veut déployer sur de l'embarqué. Buildroot par exemple est constitué d'un ensemble de Makefile et de patches. Ces outils permettent également de "personnaliser" ce Linux embarqué, via
+Comme leur nom l'indique, les outils d'automatisation servent à automatiser un processus, en l'occurrence la création (construction et compilation) d'un système Linux qu'on veut déployer sur de l'embarqué. Buildroot par exemple est constitué d'un ensemble de Makefile et de patches. Ces outils permettent également de "personnaliser" ce Linux embarqué.
